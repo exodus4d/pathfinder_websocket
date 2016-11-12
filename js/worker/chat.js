@@ -12,17 +12,19 @@ var initSocket = function(uri){
         socket = new WebSocket(uri);
 
         socket.onopen = function(e){
+            msgWorkerOpen.socket = this;
 
-            //
             ports[ports.length - 1].postMessage(msgWorkerOpen);
 
             socket.onmessage = function(e){
-
                 let load = JSON.parse(e.data);
-                var msgWorkerSend = new msgWorker('ws:send');
+
+                let msgWorkerSend = new msgWorker('ws:send');
+                msgWorkerSend.socket = this;
+
                 msgWorkerSend.data(load);
 
-                for (var i = 0; i < ports.length; i++) {
+                for (let i = 0; i < ports.length; i++) {
                     ports[i].postMessage(msgWorkerSend);
                 }
 
@@ -32,7 +34,13 @@ var initSocket = function(uri){
             };
 
             socket.onclose = function(){
-                console.info('ws: onclose()');
+                let msgWorkerWsClosed = new msgWorker('ws:closed');
+                msgWorkerWsClosed.socket = this;
+
+                console.log(socket.readyState);
+                for (let i = 0; i < ports.length; i++) {
+                    ports[i].postMessage(msgWorkerWsClosed);
+                }
             };
 
             socket.onerror = function(){
@@ -46,7 +54,7 @@ var initSocket = function(uri){
 };
 
 self.addEventListener('connect', function (event){
-    var port = event.ports[0];
+    let port = event.ports[0];
     ports.push(port);
 
     port.addEventListener('message', function (e){
@@ -61,7 +69,7 @@ self.addEventListener('connect', function (event){
                 socket.send(JSON.stringify(load.data()));
                 break;
             case 'ws:close':
-                closeSocket(socket);
+                closeSocket();
                 break;
             case 'ws:notify':
                 notifications = load.data().status;
@@ -73,18 +81,10 @@ self.addEventListener('connect', function (event){
 }, false);
 
 
-
 // Util ================================================================
-var closeSocket = function(socket){
+var closeSocket = function(){
     // only close if active
-    console.log(socket.readyState + ' - ' + socket.OPEN);
     if(socket.readyState === socket.OPEN){
-        // send "close" event before close call
-        var msgWorkerWsClosed = new msgWorker('ws:closed');
-        for (var i = 0; i < ports.length; i++) {
-            ports[i].postMessage(msgWorkerWsClosed);
-        }
-
         socket.close();
     }
 };

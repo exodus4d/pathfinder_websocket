@@ -1,3 +1,7 @@
+var domain = location.host.replace('www.','');
+var workerProtocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+var workerUri = workerProtocol + '//' + domain + ':8080';
+
 window.onload = function (){
 
 	var msgWorker = this.msgWorker;
@@ -21,6 +25,9 @@ window.onload = function (){
 				setSocketStatus(false);
 				break;
 		}
+
+		// show webSocket info
+		console.info(load.socket);
 	}, false);
 
 	worker.onerror = function(e){
@@ -31,7 +38,7 @@ window.onload = function (){
 
 	var msgWorkerInit = new msgWorker('ws:init');
 	msgWorkerInit.data({
-		uri: 'ws://wstest.local:8080'
+		uri: workerUri
 	});
 	worker.port.postMessage(msgWorkerInit);
 
