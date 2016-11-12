@@ -1,4 +1,4 @@
-var msgWorker = class MsgWorkerTest {
+var msgWorker = class MessageWorker {
     constructor(cmd){
         this.cmd = cmd;
         this.msgBody = null;

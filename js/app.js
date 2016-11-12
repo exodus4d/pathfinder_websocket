@@ -2,7 +2,7 @@ window.onload = function (){
 
 	var msgWorker = this.msgWorker;
 
-	var worker = new SharedWorker('js/worker/chat_new.js', 'worker_name');
+	var worker = new SharedWorker('js/worker/chat.js', 'worker_name');
 
 	worker.port.addEventListener('message', function(e){
 		let load = e.data;
