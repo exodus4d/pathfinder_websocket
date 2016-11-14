@@ -1,6 +1,6 @@
-var domain = location.host.replace('www.','');
+var domain = location.host;
 var workerProtocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
-var workerUri = workerProtocol + '//' + domain + ':8080';
+var workerUri = workerProtocol + '//' + domain + '/ws/chat';
 
 window.onload = function (){
 
