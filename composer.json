@@ -1,10 +1,23 @@
 {
-  "require": {
-    "cboden/ratchet": "dev-master"
-  },
+  "name": "exodus4d/pathfinder_websocket",
+  "description": "WebSocket extension for 'Pathfinder'",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Mark Friedrich",
+      "email": "pathfinder@exodus4d.de"
+    }
+  ],
   "autoload": {
     "psr-4": {
       "Exodus4D\\Socket\\": "app/"
     }
+  },
+  "require": {
+    "php-64bit": ">=7.0",
+    "ext-zmq": "1.1.*",
+    "cboden/ratchet": "0.3.*",
+    "react/zmq": "0.3.*"
   }
 }
