@@ -6,6 +6,7 @@
     Which is a "network library" written in C (very fast) that handles TCP based socket connections 
     between your existing _Pathfinder_ installation and this WebSocket server extension. [download *ØMQ*](http://zeromq.org/area:download).
 3. A new [PHP extension for *ØMQ*](http://zeromq.org/bindings:php) that handles the communication between this WebSocket server and *ØMQ*. **(>= v1.1.3)**
+
 ####Install:
 Make sure you meet the requirements before continue with the installation.
 1. Install [Composer](https://getcomposer.org/download/)
