@@ -1,9 +1,17 @@
 ### [WIP] WebSocket server for [Pathfinder](https://github.com/exodus4d/pathfinder)
 
+####Requirements:
+1. A working instance of *[Pathfinder](https://github.com/exodus4d/pathfinder)* **(>= v1.2.0)**.
+2. A working installation of *[ØMQ](http://zeromq.org/area:download)* **(>= v4.2.0)**. 
+    Which is a "network library" written in C (very fast) that handles TCP based socket connections 
+    between your existing _Pathfinder_ installation and this WebSocket server extension. [download *ØMQ*](http://zeromq.org/area:download).
+3. A new [PHP extension for *ØMQ*](http://zeromq.org/bindings:php) that handles the communication between this WebSocket server and *ØMQ*. **(>= v1.1.3)**
 ####Install:
+Make sure you meet the requirements before continue with the installation.
 1. Install [Composer](https://getcomposer.org/download/)
 2. Install Composer dependencies from `composer.json` file:
-    - `php composer.phar install` (edit composer.phar path to your Composer installation)
+    - `$ composer install` OR
+    - `$ php composer.phar install` (change composer.phar path to your Composer directory)
 3. Start WebSocket server `php cmd.php` 
 
 ####Default Configuration
