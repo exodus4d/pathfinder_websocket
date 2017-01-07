@@ -9,6 +9,7 @@
 
 ####Install:
 Make sure you meet the requirements before continue with the installation.
+
 1. Install [Composer](https://getcomposer.org/download/)
 2. Install Composer dependencies from `composer.json` file:
     - `$ composer install` OR
