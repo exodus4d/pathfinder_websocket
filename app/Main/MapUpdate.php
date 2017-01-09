@@ -84,12 +84,19 @@ class MapUpdate implements MessageComponentInterface {
         }
     }
 
+    /**
+     * @param ConnectionInterface $conn
+     */
     public function onClose(ConnectionInterface $conn) {
         $this->unSubscribeConnection($conn);
 
         $this->log('DISCONNECTED connection. ID (' . $conn->resourceId .') ');
     }
 
+    /**
+     * @param ConnectionInterface $conn
+     * @param \Exception $e
+     */
     public function onError(ConnectionInterface $conn, \Exception $e) {
         $this->unSubscribeConnection($conn);
         $this->log('ERROR "' . $e->getMessage() . '" ID (' . $conn->resourceId .') ');
