@@ -57,11 +57,11 @@ class MapUpdate implements MessageComponentInterface {
         $this->characters = [];
         $this->subscriptions = [];
 
-        echo "__construct() \n";
+        $this->log('Server START ------------------------------------------');
     }
 
     public function onOpen(ConnectionInterface $conn) {
-        echo "NEW connection! ({$conn->resourceId})\n";
+        $this->log('NEW connection. ID (' . $conn->resourceId .') ');
     }
 
     public function onMessage(ConnectionInterface $conn, $msg) {
@@ -87,14 +87,13 @@ class MapUpdate implements MessageComponentInterface {
     public function onClose(ConnectionInterface $conn) {
         $this->unSubscribeConnection($conn);
 
-        echo "Connection {$conn->resourceId} has disconnected\n";
+        $this->log('DISCONNECTED connection. ID (' . $conn->resourceId .') ');
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e) {
         $this->unSubscribeConnection($conn);
+        $this->log('ERROR "' . $e->getMessage() . '" ID (' . $conn->resourceId .') ');
         $conn->close();
-
-        echo "An error has occurred: {$e->getMessage()}\n";
     }
 
     /**
@@ -491,4 +490,18 @@ class MapUpdate implements MessageComponentInterface {
 
         return $response;
     }
+
+
+    // logging ====================================================================================
+
+    /**
+     * outputs a custom log text
+     * -> The output can be written to a *.log file if running the webSocket server (cmd.php) as a service
+     * @param $text
+     */
+    protected function log($text){
+        $text = date('Y-m-d H:i:s') . ' ' . $text;
+        echo $text . "\n";
+    }
+
 }
