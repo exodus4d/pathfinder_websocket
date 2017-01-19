@@ -34,7 +34,8 @@ class WebSockets {
         // Listen for the web server to make a ZeroMQ push after an ajax request
         $context = new React\ZMQ\Context($loop);
 
-        $pull = $context->getSocket(\ZMQ::SOCKET_REP);
+        //$pull = $context->getSocket(\ZMQ::SOCKET_REP);
+        $pull = $context->getSocket(\ZMQ::SOCKET_PULL);
         // Binding to 127.0.0.1 means, the only client that can connect is itself
         $pull->bind( $this->dns );
 

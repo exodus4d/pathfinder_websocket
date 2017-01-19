@@ -388,7 +388,8 @@ class MapUpdate implements MessageComponentInterface {
                 $response = $this->deleteMapId($task, $load);
                 break;
             case 'healthCheck':
-                $response = 1;
+                $this->log('Health');
+                $response = 'OK';
                 break;
         }
 
