@@ -45,6 +45,13 @@ class MapUpdate implements MessageComponentInterface {
     protected $subscriptions;
 
     /**
+     * enable debug output
+     * -> check debug() for more information
+     * @var bool
+     */
+    protected $debug = false;
+
+    /**
      * internal socket for response calls
      * @var null | \React\ZMQ\SocketWrapper
      */
@@ -388,7 +395,6 @@ class MapUpdate implements MessageComponentInterface {
                 $response = $this->deleteMapId($task, $load);
                 break;
             case 'healthCheck':
-                $this->log('Health');
                 $response = 'OK';
                 break;
         }
@@ -510,6 +516,34 @@ class MapUpdate implements MessageComponentInterface {
     protected function log($text){
         $text = date('Y-m-d H:i:s') . ' ' . $text;
         echo $text . "\n";
+
+        $this->debug();
+    }
+
+    protected function debug(){
+        if( $this->debug ){
+            $mapId = 1;
+            $characterId = 1946320202;
+
+            $subscriptions = $this->subscriptions[$mapId];
+            $connectionsForChar = count($this->characters[$characterId]);
+            $mapAccessData = $this->mapAccessData[$mapId][$characterId];
+            echo "\n" . "========== START ==========" . "\n";
+
+            echo "-> characterAccessData: " . "\n";
+            var_dump( $this->characterAccessData );
+
+            echo "\n" . "-> Subscriptions mapId: " . $mapId . " " . "\n";
+            var_dump($subscriptions);
+
+            echo "\n" . "-> connectionsForChar characterId: " . $characterId . " count: " .  $connectionsForChar . " " . "\n";
+
+            echo "-> mapAccessData: " . "\n";
+            var_dump($mapAccessData);
+
+            echo "\n" . "========== END ==========" . "\n";
+        }
+
     }
 
 }
