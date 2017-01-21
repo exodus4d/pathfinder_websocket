@@ -14,6 +14,13 @@ use Ratchet\ConnectionInterface;
 class MapUpdate implements MessageComponentInterface {
 
     /**
+     * timestamp (ms) from last healthCheck ping
+     * -> timestamp received from remote TCP socket
+     * @var
+     */
+    protected $healthCheckToken;
+
+    /**
      * expire time for map access tokens (seconds)
      * @var int
      */
@@ -85,6 +92,9 @@ class MapUpdate implements MessageComponentInterface {
                 case 'subscribe':
                     $this->subscribe($conn, $load);
                     break;
+                case 'healthCheck':
+                    $this->validateHealthCheck($conn, $load);
+                    break;
                 default:
                     break;
             }
@@ -108,6 +118,26 @@ class MapUpdate implements MessageComponentInterface {
         $this->unSubscribeConnection($conn);
         $this->log('ERROR "' . $e->getMessage() . '" ID (' . $conn->resourceId .') ');
         $conn->close();
+    }
+
+    /**
+     * Check token (timestamp from initial TCP healthCheck poke against token send from client
+     * @param ConnectionInterface $conn
+     * @param $token
+     */
+    private function validateHealthCheck($conn, $token){
+        $isValid = 0;
+
+        if(
+            $token && $this->healthCheckToken &&
+            $token === $this->healthCheckToken
+        ){
+            $isValid = 1;
+        }
+        $conn->send( json_encode($isValid) );
+
+        // reset token
+        $this->healthCheckToken = null;
     }
 
     /**
@@ -395,6 +425,7 @@ class MapUpdate implements MessageComponentInterface {
                 $response = $this->deleteMapId($task, $load);
                 break;
             case 'healthCheck':
+                $this->healthCheckToken = (float)$load;
                 $response = 'OK';
                 break;
         }
