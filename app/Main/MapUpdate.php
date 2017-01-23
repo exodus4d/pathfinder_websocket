@@ -14,6 +14,13 @@ use Ratchet\ConnectionInterface;
 class MapUpdate implements MessageComponentInterface {
 
     /**
+     * timestamp (ms) from last healthCheck ping
+     * -> timestamp received from remote TCP socket
+     * @var
+     */
+    protected $healthCheckToken;
+
+    /**
      * expire time for map access tokens (seconds)
      * @var int
      */
@@ -43,6 +50,13 @@ class MapUpdate implements MessageComponentInterface {
      * @var array
      */
     protected $subscriptions;
+
+    /**
+     * enable debug output
+     * -> check debug() for more information
+     * @var bool
+     */
+    protected $debug = false;
 
     /**
      * internal socket for response calls
@@ -78,6 +92,9 @@ class MapUpdate implements MessageComponentInterface {
                 case 'subscribe':
                     $this->subscribe($conn, $load);
                     break;
+                case 'healthCheck':
+                    $this->validateHealthCheck($conn, $load);
+                    break;
                 default:
                     break;
             }
@@ -101,6 +118,26 @@ class MapUpdate implements MessageComponentInterface {
         $this->unSubscribeConnection($conn);
         $this->log('ERROR "' . $e->getMessage() . '" ID (' . $conn->resourceId .') ');
         $conn->close();
+    }
+
+    /**
+     * Check token (timestamp from initial TCP healthCheck poke against token send from client
+     * @param ConnectionInterface $conn
+     * @param $token
+     */
+    private function validateHealthCheck($conn, $token){
+        $isValid = 0;
+
+        if(
+            $token && $this->healthCheckToken &&
+            $token === $this->healthCheckToken
+        ){
+            $isValid = 1;
+        }
+        $conn->send( json_encode($isValid) );
+
+        // reset token
+        $this->healthCheckToken = null;
     }
 
     /**
@@ -388,7 +425,8 @@ class MapUpdate implements MessageComponentInterface {
                 $response = $this->deleteMapId($task, $load);
                 break;
             case 'healthCheck':
-                $response = 1;
+                $this->healthCheckToken = (float)$load;
+                $response = 'OK';
                 break;
         }
 
@@ -509,6 +547,34 @@ class MapUpdate implements MessageComponentInterface {
     protected function log($text){
         $text = date('Y-m-d H:i:s') . ' ' . $text;
         echo $text . "\n";
+
+        $this->debug();
+    }
+
+    protected function debug(){
+        if( $this->debug ){
+            $mapId = 1;
+            $characterId = 1946320202;
+
+            $subscriptions = $this->subscriptions[$mapId];
+            $connectionsForChar = count($this->characters[$characterId]);
+            $mapAccessData = $this->mapAccessData[$mapId][$characterId];
+            echo "\n" . "========== START ==========" . "\n";
+
+            echo "-> characterAccessData: " . "\n";
+            var_dump( $this->characterAccessData );
+
+            echo "\n" . "-> Subscriptions mapId: " . $mapId . " " . "\n";
+            var_dump($subscriptions);
+
+            echo "\n" . "-> connectionsForChar characterId: " . $characterId . " count: " .  $connectionsForChar . " " . "\n";
+
+            echo "-> mapAccessData: " . "\n";
+            var_dump($mapAccessData);
+
+            echo "\n" . "========== END ==========" . "\n";
+        }
+
     }
 
 }
