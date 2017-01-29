@@ -467,7 +467,7 @@ class MapUpdate implements MessageComponentInterface {
      */
     private function setAccess($task, $accessData){
         $NewMapCharacterIds = [];
-// test
+
         if($mapId = (int)$accessData['id']){
             $characterIds = (array)$accessData['characterIds'];
             $currentMapCharacterIds = array_values((array)$this->subscriptions[$mapId]);
