@@ -430,7 +430,7 @@ class MapUpdate implements MessageComponentInterface {
                 break;
         }
 
-        $this->internalSocket->send($response);
+      //  $this->internalSocket->send($response);
     }
 
     /**
