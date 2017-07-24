@@ -130,7 +130,7 @@ class MapUpdate implements MessageComponentInterface {
 
         if(
             $token && $this->healthCheckToken &&
-            $token === $this->healthCheckToken
+            (int)$token === (int)$this->healthCheckToken
         ){
             $isValid = 1;
         }
@@ -430,7 +430,7 @@ class MapUpdate implements MessageComponentInterface {
                 break;
         }
 
-        $this->internalSocket->send($response);
+      //  $this->internalSocket->send($response);
     }
 
     /**
