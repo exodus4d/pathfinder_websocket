@@ -8,6 +8,7 @@
 
 namespace Exodus4D\Socket\Main;
 
+use Exodus4D\Socket\Main\Handler\LogFileHandler;
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
 
@@ -58,14 +59,7 @@ class MapUpdate implements MessageComponentInterface {
      */
     protected $debug = false;
 
-    /**
-     * internal socket for response calls
-     * @var null | \React\ZMQ\SocketWrapper
-     */
-    protected $internalSocket = null;
-
-    public function __construct($socket) {
-        $this->internalSocket = $socket;
+    public function __construct() {
         $this->characterAccessData = [];
         $this->mapAccessData = [];
         $this->characters = [];
@@ -227,6 +221,19 @@ class MapUpdate implements MessageComponentInterface {
         }
 
         return true;
+    }
+
+    /**
+     * unSubscribe $characterIds from ALL maps
+     * @param array $characterIds
+     * @return bool
+     */
+    private function unSubscribeCharacterIds(array $characterIds): bool{
+        $response = false;
+        foreach($characterIds as $characterId){
+            $response = $this->unSubscribeCharacterId($characterId);
+        }
+        return $response;
     }
 
     /**
@@ -410,7 +417,7 @@ class MapUpdate implements MessageComponentInterface {
 
         switch($data['task']){
             case 'characterLogout':
-                $response = $this->unSubscribeCharacterId($load);
+                $response = $this->unSubscribeCharacterIds($load);
                 break;
             case 'mapConnectionAccess':
                 $response = $this->setConnectionAccess($load);
@@ -428,9 +435,11 @@ class MapUpdate implements MessageComponentInterface {
                 $this->healthCheckToken = (float)$load;
                 $response = 'OK';
                 break;
+            case 'logData':
+                $this->handleLogData((array)$load['meta'], (array)$load['log']);
+                break;
         }
 
-      //  $this->internalSocket->send($response);
     }
 
     /**
@@ -534,6 +543,11 @@ class MapUpdate implements MessageComponentInterface {
         }
 
         return $response;
+    }
+
+    private function handleLogData(array $meta, array $log){
+        $logHandler = new LogFileHandler((string)$meta['stream']);
+        $logHandler->write($log);
     }
 
 
