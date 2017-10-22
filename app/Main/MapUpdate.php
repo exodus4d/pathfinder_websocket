@@ -545,6 +545,11 @@ class MapUpdate implements MessageComponentInterface {
         return $response;
     }
 
+    /**
+     * dispatch log writing to a LogFileHandler
+     * @param array $meta
+     * @param array $log
+     */
     private function handleLogData(array $meta, array $log){
         $logHandler = new LogFileHandler((string)$meta['stream']);
         $logHandler->write($log);

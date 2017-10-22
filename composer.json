@@ -17,7 +17,7 @@
   "require": {
     "php-64bit": ">=7.0",
     "ext-zmq": "1.1.*",
-    "cboden/ratchet": "0.3.*",
-    "react/zmq": "0.3.*"
+    "cboden/ratchet": "0.4.x-dev",
+    "react/zmq": "dev-master"
   }
 }
