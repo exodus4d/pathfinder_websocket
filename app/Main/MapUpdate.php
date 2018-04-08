@@ -204,6 +204,11 @@ class MapUpdate implements MessageComponentInterface {
             if($characterData = $this->checkCharacterAccess($characterId, $characterToken)){
                 $this->characters[$characterId][$conn->resourceId] = $conn;
 
+                // insert/update characterData cache
+                // -> even if characterId does not have access to a map "yet"
+                // -> no maps found but character can get map access at any time later
+                $this->setCharacterData($characterData);
+
                 // valid character -> check map access
                 $changedSubscriptionsMapIds = [];
                 foreach((array)$subscribeData['mapData'] as $data){
@@ -215,9 +220,6 @@ class MapUpdate implements MessageComponentInterface {
                         if( $this->checkMapAccess($characterId, $mapId, $mapToken) ){
                             // valid map subscribe request
                             $this->subscriptions[$mapId][$characterId] = $characterId;
-                            // insert/update characterData cache
-                            $this->setCharacterData($characterData);
-
                             $changedSubscriptionsMapIds[] = $mapId;
                         }
                     }
@@ -606,7 +608,7 @@ class MapUpdate implements MessageComponentInterface {
      * @return int count of connected characters
      */
     private function setAccess(string $task, $accessData) : int {
-        $NewMapCharacterIds = [];
+        $newMapCharacterIds = [];
 
         if($mapId = (int)$accessData['id']){
             $characterIds = (array)$accessData['characterIds'];
@@ -618,27 +620,32 @@ class MapUpdate implements MessageComponentInterface {
                     !empty($this->characters[$characterId]) &&
                     !empty($this->getCharacterData($characterId))
                 ){
-                    $NewMapCharacterIds[$characterId] = $characterId;
+                    $newMapCharacterIds[$characterId] = $characterId;
                 }
             }
 
             $currentMapCharacterIds = (array)$this->subscriptions[$mapId];
 
             // broadcast "map delete" to no longer valid characters ---------------------------------------------------
-            $removedMapCharacterIds = array_diff(array_keys($currentMapCharacterIds), array_keys($NewMapCharacterIds));
+            $removedMapCharacterIds = array_keys(array_diff_key($currentMapCharacterIds, $newMapCharacterIds));
             $removedMapCharacterConnections = $this->getConnectionsByCharacterIds($removedMapCharacterIds);
             $this->broadcastData($removedMapCharacterConnections, $task, $mapId, $removedMapCharacterIds);
 
             // update map subscriptions -------------------------------------------------------------------------------
-            if( !empty($NewMapCharacterIds) ){
+            if( !empty($newMapCharacterIds) ){
                 // set new characters that have map access (overwrites existing subscriptions for that map)
-                $this->subscriptions[$mapId] = $NewMapCharacterIds;
+                $this->subscriptions[$mapId] = $newMapCharacterIds;
+
+                // check if subscriptions have changed
+                if( !$this->arraysEqualKeys($currentMapCharacterIds, $newMapCharacterIds) ){
+                    $this->broadcastMapSubscriptions('mapSubscriptions', [$mapId]);
+                }
             }else{
                 // no characters (left) on this map
                 unset($this->subscriptions[$mapId]);
             }
         }
-        return count($NewMapCharacterIds);
+        return count($newMapCharacterIds);
     }
 
     /**
@@ -680,6 +687,17 @@ class MapUpdate implements MessageComponentInterface {
         }
 
         return $response;
+    }
+
+    /**
+     * compare two assoc arrays by keys. Key order is ignored
+     * -> if all keys from array1 exist in array2 && all keys from array2 exist in array 1, arrays are supposed to be equal
+     * @param array $array1
+     * @param array $array2
+     * @return bool
+     */
+    protected function arraysEqualKeys(array $array1, array $array2) : bool {
+        return !array_diff_key($array1, $array2) && !array_diff_key($array2, $array1);
     }
 
     /**
