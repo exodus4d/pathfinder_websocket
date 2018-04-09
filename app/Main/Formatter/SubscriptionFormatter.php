@@ -20,7 +20,11 @@ class SubscriptionFormatter{
         $data = [];
         foreach($charactersData as $characterId => $characterData){
             // check if characterData has an active log (active system for character)
-            $systemId = (int)$characterData['log']['system']['id'];
+            $systemId = 0;
+            if(isset($characterData['log']['system']['id'])){
+                $systemId = (int)$characterData['log']['system']['id'];
+            }
+
             if( !isset($data[$systemId]) ){
                 $systemData = (object)[];
                 $systemData->id = $systemId;
