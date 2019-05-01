@@ -22,7 +22,7 @@ Make sure you meet the requirements before continue with the installation.
 - Port:`8020`
 - URI:`127.0.0.1:8020` (Your WebServer (e.g. Nginx) should pass all WebSocket connections to this source)
 
-**TCP Socket connection (Internal use fore WebServer <=> WebSocket communication)**
+**TCP TcpSocket connection (Internal use fore WebServer <=> WebSocket communication)**
 - Host:`127.0.0.1` (=> Assumed WebServer and WebSocket Server running on the same machine)
 - Port:`5555`
 - URI: `tcp://127.0.0.1:5555`
