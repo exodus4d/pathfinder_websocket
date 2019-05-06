@@ -224,7 +224,7 @@ class TcpSocket {
                 $promise = Promise\Stream\first($streamDecoded);
 
                 // register on('data') for main input stream
-                $connection->once('data', function ($chunk) use ($stream) {
+                $connection->on('data', function ($chunk) use ($stream) {
                     // send current data chunk to processing stream -> resolves promise
                     $stream->emit('data', [$chunk]);
                 });
