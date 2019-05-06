@@ -360,7 +360,14 @@ class MapUpdate implements MessageComponentInterface {
      * @return array
      */
     private function getCharacterIdsByMapId(int $mapId) : array {
-        return is_array($this->subscriptions[$mapId]) ? array_keys($this->subscriptions[$mapId]) : [];
+        $characterIds = [];
+        if(
+            array_key_exists($mapId, $this->subscriptions) &&
+            is_array($this->subscriptions[$mapId])
+        ){
+            $characterIds = array_keys($this->subscriptions[$mapId]);
+        }
+        return $characterIds;
     }
 
     /**
