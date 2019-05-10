@@ -360,7 +360,14 @@ class MapUpdate implements MessageComponentInterface {
      * @return array
      */
     private function getCharacterIdsByMapId(int $mapId) : array {
-        return array_keys((array)$this->subscriptions[$mapId]);
+        $characterIds = [];
+        if(
+            array_key_exists($mapId, $this->subscriptions) &&
+            is_array($this->subscriptions[$mapId])
+        ){
+            $characterIds = array_keys($this->subscriptions[$mapId]);
+        }
+        return $characterIds;
     }
 
     /**
@@ -485,43 +492,44 @@ class MapUpdate implements MessageComponentInterface {
     /**
      * receive data from TCP socket (main App)
      * -> send response back
-     * @param $data
+     * @param string $task
+     * @param null $load
+     * @return bool|float|int|null
      */
-    public function receiveData($data){
-        $data = (array)json_decode($data, true);
-        $load = $data['load'];
-        $task = $data['task'];
-        $response = false;
+    public function receiveData(string $task, $load = null){
+        $responseLoad = null;
 
         switch($task){
+            case 'healthCheck':
+                $this->healthCheckToken = (float)$load;
+                $responseLoad = $this->healthCheckToken;
+                break;
             case 'characterUpdate':
-                $response = $this->updateCharacterData($load);
+                $this->updateCharacterData($load);
                 $mapIds = $this->getMapIdsByCharacterId((int)$load['id']);
                 $this->broadcastMapSubscriptions('mapSubscriptions', $mapIds);
                 break;
             case 'characterLogout':
-                $response = $this->unSubscribeCharacterIds($load);
+                $responseLoad = $this->unSubscribeCharacterIds($load);
                 break;
             case 'mapConnectionAccess':
-                $response = $this->setConnectionAccess($load);
+                $responseLoad = $this->setConnectionAccess($load);
                 break;
             case 'mapAccess':
-                $response = $this->setAccess($task, $load);
+                $responseLoad = $this->setAccess($task, $load);
                 break;
             case 'mapUpdate':
-                $response = $this->broadcastMapUpdate($task, $load);
+                $responseLoad = $this->broadcastMapUpdate($task, $load);
                 break;
             case 'mapDeleted':
-                $response = $this->deleteMapId($task, $load);
-                break;
-            case 'healthCheck':
-                $this->healthCheckToken = (float)$load;
-                $response = 'OK';
+                $responseLoad = $this->deleteMapId($task, $load);
                 break;
             case 'logData':
                 $this->handleLogData((array)$load['meta'], (array)$load['log']);
                 break;
         }
+
+        return $responseLoad;
     }
 
     private function setCharacterData(array $characterData){

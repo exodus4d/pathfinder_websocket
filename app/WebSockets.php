@@ -8,52 +8,77 @@
 
 namespace Exodus4D\Socket;
 
+
+use Exodus4D\Socket\Socket\TcpSocket;
+use React\EventLoop;
+use React\Socket;
 use Ratchet\Server\IoServer;
 use Ratchet\Http\HttpServer;
 use Ratchet\WebSocket\WsServer;
 
-use React;
-
 class WebSockets {
 
-    protected $dns;
+    /**
+     * @var string
+     */
+    protected $dsn;
+
+    /**
+     * @var int
+     */
     protected $wsListenPort;
+
+    /**
+     * @var string
+     */
     protected $wsListenHost;
 
-    function __construct($dns, $wsListenPort, $wsListenHost){
-        $this->dns = $dns;
-        $this->wsListenPort = (int)$wsListenPort;
+    /**
+     * WebSockets constructor.
+     * @param string $dsn
+     * @param int $wsListenPort
+     * @param string $wsListenHost
+     */
+    function __construct(string $dsn, int $wsListenPort, string $wsListenHost){
+        $this->dsn = $dsn;
+        $this->wsListenPort = $wsListenPort;
         $this->wsListenHost = $wsListenHost;
 
         $this->startMapSocket();
     }
 
     private function startMapSocket(){
-        $loop   = React\EventLoop\Factory::create();
+        // global EventLoop
+        $loop   = EventLoop\Factory::create();
 
-        // Listen for the web server to make a ZeroMQ push after an ajax request
-        $context = new React\ZMQ\Context($loop);
-
-        // Socket for map update data -------------------------------------------------------------
-        $pull = $context->getSocket(\ZMQ::SOCKET_PULL);
-        // Binding to 127.0.0.1 means, the only client that can connect is itself
-        $pull->bind( $this->dns );
-
-        // main app -> inject socket for response
+        // global MessageComponent (main app) (handles all business logic)
         $mapUpdate = new Main\MapUpdate();
-        // "onMessage" listener
-        $pull->on('message', [$mapUpdate, 'receiveData']);
 
-        // Socket for log data --------------------------------------------------------------------
-        //$pullSocketLogs = $context->getSocket(\ZMQ::SOCKET_PULL);
-        //$pullSocketLogs->bind( "tcp://127.0.0.1:5555" );
-        //$pullSocketLogs->on('message', [$mapUpdate, 'receiveLogData']) ;
+        // TCP Socket -------------------------------------------------------------------------------------------------
+        $tcpSocket = new TcpSocket($loop, $mapUpdate);
+        // TCP Server (WebServer <-> TCPServer <-> TCPSocket communication)
+        $server = new Socket\Server($this->dsn, $loop, [
+            'tcp' => [
+                'backlog' => 20,
+                'so_reuseport' => true
+            ]
+        ]);
+
+        $server->on('connection', function(Socket\ConnectionInterface $connection) use ($tcpSocket){
+            $tcpSocket->onConnect($connection);
+        });
+
+        $server->on('error', function(\Exception $e){
+            echo 'error: ' . $e->getMessage() . PHP_EOL;
+        });
+
+        // WebSocketServer --------------------------------------------------------------------------------------------
 
         // Binding to 0.0.0.0 means remotes can connect (Web Clients)
         $webSocketURI = $this->wsListenHost . ':' . $this->wsListenPort;
 
-        // Set up our WebSocket server for clients wanting real-time updates
-        $webSock = new React\Socket\Server($webSocketURI, $loop);
+        // Set up our WebSocket server for clients subscriptions
+        $webSock = new Socket\TcpServer($webSocketURI, $loop);
         new IoServer(
             new HttpServer(
                 new WsServer(

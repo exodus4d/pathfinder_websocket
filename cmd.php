@@ -25,9 +25,9 @@ if(PHP_SAPI === 'cli'){
     $host = (!empty($options['pf_host'])) ? $options['pf_host'] : '127.0.0.1' ;
     $port = (!empty($options['pf_port'])) ? (int)$options['pf_port'] : 5555 ;
 
-    $dns = 'tcp://' . $host . ':' . $port;
+    $dsn = 'tcp://' . $host . ':' . $port;
 
-    new Socket\WebSockets($dns, $wsListenPort, $wsListenHost);
+    new Socket\WebSockets($dsn, $wsListenPort, $wsListenHost);
 }else{
     echo "Script need to be called by CLI!";
 }

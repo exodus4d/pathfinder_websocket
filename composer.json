@@ -15,9 +15,13 @@
     }
   },
   "require": {
-    "php-64bit": ">=7.0",
-    "ext-zmq": ">=1.1.3",
+    "php-64bit": ">=7.1",
+    "ext-json": "*",
     "cboden/ratchet": "0.4.x",
-    "react/zmq": "0.3.*"
+    "react/promise-stream": "1.1.*",
+    "clue/ndjson-react": "1.0.*"
+  },
+  "suggest": {
+    "ext-event": "If installed, 'ExtEventLoop' class will get used as default event loop. Better performance. https://pecl.php.net/package/event"
   }
 }
