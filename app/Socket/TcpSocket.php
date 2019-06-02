@@ -85,6 +85,12 @@ class TcpSocket {
     const DEFAULT_DEBUG             = false;
 
     /**
+     * max length for JSON data string
+     * -> throw OverflowException on exceed
+     */
+    const JSON_DECODE_MAX_LENGTH    = 65536 * 4;
+
+    /**
      * global server loop
      * @var EventLoop\LoopInterface
      */
@@ -218,7 +224,7 @@ class TcpSocket {
             if('json' == $this->acceptType){
                 // new empty stream for processing JSON
                 $stream = new Stream\ThroughStream();
-                $streamDecoded = new NDJson\Decoder($stream, true);
+                $streamDecoded = new NDJson\Decoder($stream, true, 512, 0, self::JSON_DECODE_MAX_LENGTH);
 
                 // promise get resolved on first emit('data')
                 $promise = Promise\Stream\first($streamDecoded);
@@ -388,7 +394,7 @@ class TcpSocket {
             $this->hasConnection($connection) &&
             ($data = (array)$this->connections->offsetGet($connection)) &&
             isset($data['timers']) && isset($data['timers'][$timerName]) &&
-            ($data['timers'][$timerName] instanceof EventLoop\Timer\TimerInterface)
+            ($data['timers'][$timerName] instanceof EventLoop\TimerInterface)
         ){
             $this->loop->cancelTimer($data['timers'][$timerName]);
 
@@ -535,11 +541,16 @@ class TcpSocket {
      */
     protected function debug(Socket\ConnectionInterface $connection, string $method, string $message = ''){
         if(self::DEFAULT_DEBUG){
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+            $caller = array_shift($backtrace);
+            $callerOrig = array_shift($backtrace);
+
             $data = [
                 date('Y-m-d H:i:s'),
-                __CLASS__ . '()',
+                'DEBUG',
                 $connection->getRemoteAddress(),
-                $method . '()',
+                $caller['file'] . ' line ' . $caller['line'],
+                $callerOrig['function'] . '()' . (($callerOrig['function'] !== $method) ? ' [' . $method . '()]' : ''),
                 $message
             ];
 
