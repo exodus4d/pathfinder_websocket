@@ -9,6 +9,7 @@
 namespace Exodus4D\Socket\Socket;
 
 
+use Exodus4D\Socket\Log\Store;
 use React\EventLoop;
 use React\Socket;
 use React\Promise;
@@ -16,7 +17,14 @@ use React\Stream;
 use Clue\React\NDJson;
 use Ratchet\MessageComponentInterface;
 
-class TcpSocket {
+class TcpSocket extends AbstractSocket{
+
+    /**
+     * unique name for this component
+     * -> should be overwritten in child instances
+     * -> is used as "log store" name
+     */
+    const COMPONENT_NAME                = 'tcpSock';
 
     /**
      * error message for unknown acceptType
@@ -77,29 +85,13 @@ class TcpSocket {
     /**
      * default for: add socket statistic to response payload
      */
-    const DEFAULT_STATS             = true;
-
-    /**
-     * default for: echo debug messages
-     */
-    const DEFAULT_DEBUG             = false;
+    const DEFAULT_ADD_STATS         = false;
 
     /**
      * max length for JSON data string
      * -> throw OverflowException on exceed
      */
     const JSON_DECODE_MAX_LENGTH    = 65536 * 4;
-
-    /**
-     * global server loop
-     * @var EventLoop\LoopInterface
-     */
-    private $loop;
-
-    /**
-     * @var MessageComponentInterface
-     */
-    private $handler;
 
     /**
      * @see TcpSocket::DEFAULT_ACCEPT_TYPE
@@ -123,7 +115,7 @@ class TcpSocket {
      * @see TcpSocket::DEFAULT_STATS
      * @var bool
      */
-    private $stats                  = self::DEFAULT_STATS;
+    private $addStats               = self::DEFAULT_ADD_STATS;
 
     /**
      * storage for all active connections
@@ -137,18 +129,19 @@ class TcpSocket {
      * -> represents number of active connected clients
      * @var int
      */
-    private $maxConnections = 0;
+    private $maxConnections         = 0;
 
     /**
      * timestamp on startup
      * @var int
      */
-    private $startupTime = 0;
+    private $startupTime            = 0;
 
     /**
      * TcpSocket constructor.
      * @param EventLoop\LoopInterface $loop
      * @param MessageComponentInterface $handler
+     * @param Store $store
      * @param string $acceptType
      * @param float $waitTimeout
      * @param bool $endWithResponse
@@ -156,12 +149,13 @@ class TcpSocket {
     public function __construct(
         EventLoop\LoopInterface $loop,
         MessageComponentInterface $handler,
+        Store $store,
         string $acceptType          = self::DEFAULT_ACCEPT_TYPE,
         float $waitTimeout          = self::DEFAULT_WAIT_TIMEOUT,
         bool $endWithResponse       = self::DEFAULT_END_WITH_RESPONSE
     ){
-        $this->loop                 = $loop;
-        $this->handler              = $handler;
+        parent::__construct($loop, $handler, $store);
+
         $this->acceptType           = $acceptType;
         $this->waitTimeout          = $waitTimeout;
         $this->endWithResponse      = $endWithResponse;
@@ -173,7 +167,7 @@ class TcpSocket {
      * @param Socket\ConnectionInterface $connection
      */
     public function onConnect(Socket\ConnectionInterface $connection){
-        $this->debug($connection, __FUNCTION__, '----------------------------------------');
+        $this->log('debug', $connection, __FUNCTION__, 'open connection…');
 
         if($this->isValidConnection($connection)){
             // connection can be used
@@ -182,32 +176,30 @@ class TcpSocket {
             // set waitTimeout timer for connection
             $this->setTimerTimeout($connection, $this->waitTimeout);
 
-            $this->debug($connection, __FUNCTION__);
-
             // register connection events ... -------------------------------------------------------------------------
             $this->initRead($connection)
-                ->then($this->initDispatch())
+                ->then($this->initDispatch($connection))
                 ->then($this->initResponse($connection))
                 ->then(
-                    function(string $message) use ($connection) {
-                        $this->debug($connection, 'DONE', $message);
+                    function(array $payload) use ($connection) {
+                        $this->log(['debug', 'info'], $connection,'DONE', 'task "' . $payload['task'] . '" done → response send');
                     },
                     function(\Exception $e) use ($connection) {
-                        $this->debug($connection, 'ERROR', $e->getMessage());
+                        $this->log(['debug', 'error'], $connection, 'ERROR', $e->getMessage());
                         $this->connectionError($connection, $e);
                     });
 
             $connection->on('end', function() use ($connection) {
-                $this->debug($connection, 'onEnd');
+                $this->log('debug', $connection, 'onEnd');
             });
 
-            $connection->on('close', function() use ($connection){
-                $this->debug($connection, 'onClose');
+            $connection->on('close', function() use ($connection) {
+                $this->log(['debug'], $connection, 'onClose', 'close connection');
                 $this->removeConnection($connection);
             });
 
             $connection->on('error', function(\Exception $e)  use ($connection) {
-                $this->debug($connection, 'onError', $e->getMessage());
+                $this->log(['debug', 'error'], $connection, 'onError', $e->getMessage());
             });
         }else{
             // invalid connection -> can not be used
@@ -254,15 +246,16 @@ class TcpSocket {
 
     /**
      * init dispatcher for payload
+     * @param Socket\ConnectionInterface $connection
      * @return callable
      */
-    protected function initDispatch() : callable {
-        return function($payload) : Promise\PromiseInterface {
+    protected function initDispatch(Socket\ConnectionInterface $connection) : callable {
+        return function(array $payload) use ($connection) : Promise\PromiseInterface {
             $task = (string)$payload['task'];
             if(!empty($task)){
                 $load = $payload['load'];
                 $deferred = new Promise\Deferred();
-                $this->dispatch($deferred, $task, $load);
+                $this->dispatch($connection, $deferred, $task, $load);
                 return $deferred->promise();
             }else{
                 return new Promise\RejectedPromise(
@@ -273,17 +266,21 @@ class TcpSocket {
     }
 
     /**
+     * @param Socket\ConnectionInterface $connection
      * @param Promise\Deferred $deferred
      * @param string $task
      * @param null $load
      */
-    protected function dispatch(Promise\Deferred $deferred, string $task, $load = null) : void {
+    protected function dispatch(Socket\ConnectionInterface $connection, Promise\Deferred $deferred, string $task, $load = null) : void {
+        $addStatusData = false;
 
         switch($task){
             case 'getStats':
-                $deferred->resolve($this->newPayload($task, null));
+                $addStatusData = true;
+                $deferred->resolve($this->newPayload($task, null, $addStatusData));
                 break;
             case 'healthCheck':
+                $addStatusData = true;
             case 'characterUpdate':
             case 'characterLogout':
             case 'mapConnectionAccess':
@@ -292,10 +289,13 @@ class TcpSocket {
             case 'mapDeleted':
             case 'logData':
                 if(method_exists($this->handler, 'receiveData')){
+                    $this->log(['info'], $connection, __FUNCTION__, 'task "' . $task . '" processing…');
+
                     $deferred->resolve(
                         $this->newPayload(
                             $task,
-                            call_user_func_array([$this->handler, 'receiveData'], [$task, $load])
+                            call_user_func_array([$this->handler, 'receiveData'], [$task, $load]),
+                            $addStatusData
                         )
                     );
                 }else{
@@ -313,7 +313,7 @@ class TcpSocket {
      */
     protected function initResponse(Socket\ConnectionInterface $connection) : callable {
         return function(array $payload) use ($connection) : Promise\PromiseInterface {
-            $this->debug($connection, 'initResponse');
+            $this->log('debug', $connection, 'initResponse', 'task "' . $payload['task'] . '" → init response');
 
             $deferred = new Promise\Deferred();
             $this->write($deferred, $connection, $payload);
@@ -344,7 +344,7 @@ class TcpSocket {
         }
 
         if($write){
-            $deferred->resolve('OK');
+            $deferred->resolve($payload);
         }else{
             $deferred->reject(new \Exception(
                 sprintf(self::ERROR_STREAM_NOT_WRITABLE, $connection->getRemoteAddress())
@@ -360,7 +360,8 @@ class TcpSocket {
      * @param \Exception $e
      */
     protected function connectionError(Socket\ConnectionInterface $connection, \Exception $e){
-        $this->debug($connection, __FUNCTION__, $e->getMessage());
+        $errorMessage = $e->getMessage();
+        $this->log(['debug', 'error'], $connection, __FUNCTION__, $errorMessage);
 
         if($connection->isWritable()){
             if('json' == $this->acceptType){
@@ -368,7 +369,7 @@ class TcpSocket {
             }
 
             // send "end" data, then close
-            $connection->end($this->newPayload('error', $e->getMessage()));
+            $connection->end($this->newPayload('error', $errorMessage, true));
         }else{
             // close connection
             $connection->close();
@@ -475,7 +476,9 @@ class TcpSocket {
             // update maxConnections count
             $this->maxConnections = max($this->connections->count(), $this->maxConnections);
 
-            $this->debug($connection, __FUNCTION__);
+            $this->log(['debug'], $connection, __FUNCTION__, 'add new connection');
+        }else{
+            $this->log(['debug'], $connection, __FUNCTION__, 'connection already exists');
         }
     }
 
@@ -485,7 +488,7 @@ class TcpSocket {
      */
     protected function removeConnection(Socket\ConnectionInterface $connection){
         if($this->hasConnection($connection)){
-            $this->debug($connection, __FUNCTION__);
+            $this->log(['debug'], $connection, __FUNCTION__, 'remove connection');
             $this->cancelTimers($connection);
             $this->connections->detach($connection);
         }
@@ -495,15 +498,16 @@ class TcpSocket {
      * get new payload
      * @param string $task
      * @param null $load
+     * @param bool $addStats
      * @return array
      */
-    protected function newPayload(string $task, $load = null) : array {
+    protected function newPayload(string $task, $load = null, bool $addStats = false) : array {
         $payload = [
             'task'  => $task,
             'load'  => $load
         ];
 
-        if($this->stats){
+        if($addStats || $this->addStats){
             // add socket statistics
             $payload['stats'] = $this->getStats();
         }
@@ -527,34 +531,21 @@ class TcpSocket {
      */
     protected function getStats() : array {
         return [
-            'startup'           => time() - $this->startupTime,
-            'connections'       => $this->connections->count(),
-            'maxConnections'    => $this->maxConnections
+            'tcpSocket' => $this->getSocketStats(),
+            'webSocket' => $this->handler->getSocketStats()
         ];
     }
 
     /**
-     * echo debug messages
-     * @param Socket\ConnectionInterface $connection
-     * @param string $method
-     * @param string $message
+     * get TcpSocket stats data
+     * @return array
      */
-    protected function debug(Socket\ConnectionInterface $connection, string $method, string $message = ''){
-        if(self::DEFAULT_DEBUG){
-            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
-            $caller = array_shift($backtrace);
-            $callerOrig = array_shift($backtrace);
-
-            $data = [
-                date('Y-m-d H:i:s'),
-                'DEBUG',
-                $connection->getRemoteAddress(),
-                $caller['file'] . ' line ' . $caller['line'],
-                $callerOrig['function'] . '()' . (($callerOrig['function'] !== $method) ? ' [' . $method . '()]' : ''),
-                $message
-            ];
-
-            echo implode(array_filter($data), ' | ') . PHP_EOL;
-        }
+    protected function getSocketStats() : array {
+        return [
+            'startup'           => time() - $this->startupTime,
+            'connections'       => $this->connections->count(),
+            'maxConnections'    => $this->maxConnections,
+            'logs'              => array_reverse($this->logStore->getStore())
+        ];
     }
 }

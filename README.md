@@ -1,6 +1,7 @@
 ## WebSocket server for [Pathfinder](https://github.com/exodus4d/pathfinder)
 
 ### Requirements
+- _PHP_ **(≥ v7.1)**
 - A working instance of *[Pathfinder](https://github.com/exodus4d/pathfinder)* **(≥ v1.2.0)**
 - [_Composer_](https://getcomposer.org/download/) to install packages for the WebSocket server
 
@@ -19,20 +20,49 @@
 **Clients (WebBrowser) listen for connections**
 - Host: `0.0.0.0.` (=> any client can connect)
 - Port: `8020`
-- URI: `127.0.0.1:8020` (Your WebServer (e.g. Nginx) should pass all WebSocket connections to this source)
+- ↪ URI: `127.0.0.1:8020` 
 
-**TCP TcpSocket connection (Internal use for WebServer ⇄ WebSocket communication)**
-- Host: `127.0.0.1` (=> Assumed WebServer and WebSocket Server running on the same machine)
+(=> Your WebServer (e.g. Nginx) should proxy all WebSocket connections to this source)
+
+**TCP TcpSocket connection (Internal use for WebServer ⇄ WebSocket server communication)**
+- Host: `127.0.0.1` (=> Assumed WebServer and WebSocket server running on the same machine)
 - Port: `5555`
-- URI: `tcp://127.0.0.1:5555`
+- ↪ URI: `tcp://127.0.0.1:5555` 
+
+(=> Where _Pathfinder_ reaches the WebSocket server. This must match `SOCKET_HOST`, `SOCKET_PORT` options in `environment.ini`)
  
-#### Custom [Optional]
+#### Start parameters [Optional]
 
 The default configuration should be fine for most installations. 
 You can change/overwrite the default **Host** and **Port** configuration by adding additional CLI parameters when starting the WebSocket server:
 
-`$ php cmd.php --pf_listen_host [CLIENTS_HOST] --pf_listen_port [CLIENTS_PORT] --pf_host [TCP_HOST] --pf_port [TCP_PORT]`
+`$ php cmd.php --wsHost [CLIENTS_HOST] --wsPort [CLIENTS_PORT] --tcpHost [TCP_HOST] --tcpPort [TCP_PORT] --debug 0`
  
+ For example: If you want to change the the WebSocket port and increase debug output:
+ 
+ `$ php cmd.php --wsPort 8030 --debug 3`
+ 
+##### --debug (default `--debug 2`)
+
+Allows you to set log output level from `0` (silent) - errors are not logged, to `3` (debug) for detailed logging.
+
+![alt text](https://i.imgur.com/KfNF4lk.png)
+
+### WebSocket UI
+
+There is a WebSocket section on _Pathinders_ `/setup` page. After the WebSocket server is started, you should check it if everything works.
+You see the most recent WebSocket log entries, the current connection state, the current number of active connections and all maps that have subscriptions
+
+![alt text](https://i.imgur.com/dDUrnx2.png)
+
+Log entry view. Depending on the `--debug` parameter, the most recent (max 50) entries will be shown:
+
+![alt text](https://i.imgur.com/LIn9aNm.png)
+
+Subscriptions for each map:
+
+![alt text](https://i.imgur.com/fANYwho.gif)
+
 ### Unix Service (systemd)
 
 #### New Service
@@ -97,4 +127,5 @@ ExecStart = /usr/bin/systemctl try-restart websocket.pathfinder.service
 ```
 
 ### Info
-- [*Ratchet*](http://socketo.me/) - "WebSockets for PHP"
+- [*Ratchet*](http://socketo.me) - "WebSockets for PHP"
+- [*ReactPHP*](https://reactphp.org) - "Event-driven, non-blocking I/O with PHP"
