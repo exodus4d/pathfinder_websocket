@@ -9,6 +9,7 @@
 namespace Exodus4D\Socket;
 
 
+use Exodus4D\Socket\Log\Store;
 use Exodus4D\Socket\Socket\TcpSocket;
 use React\EventLoop;
 use React\Socket;
@@ -34,15 +35,22 @@ class WebSockets {
     protected $wsListenHost;
 
     /**
+     * @var int
+     */
+    protected $debug;
+
+    /**
      * WebSockets constructor.
      * @param string $dsn
      * @param int $wsListenPort
      * @param string $wsListenHost
+     * @param int $debug
      */
-    function __construct(string $dsn, int $wsListenPort, string $wsListenHost){
+    function __construct(string $dsn, int $wsListenPort, string $wsListenHost, int $debug = 1){
         $this->dsn = $dsn;
         $this->wsListenPort = $wsListenPort;
         $this->wsListenHost = $wsListenHost;
+        $this->debug = $debug;
 
         $this->startMapSocket();
     }
@@ -51,11 +59,22 @@ class WebSockets {
         // global EventLoop
         $loop   = EventLoop\Factory::create();
 
-        // global MessageComponent (main app) (handles all business logic)
-        $mapUpdate = new Main\MapUpdate();
+        // new Stores for logging -------------------------------------------------------------------------------------
+        $webSocketLogStore = new Store(Component\MapUpdate::COMPONENT_NAME);
+        $webSocketLogStore->setLogLevel($this->debug);
+
+        $tcpSocketLogStore = new Store(TcpSocket::COMPONENT_NAME);
+        $tcpSocketLogStore->setLogLevel($this->debug);
+
+        // global MessageComponent (main app) (handles all business logic) --------------------------------------------
+        $mapUpdate = new Component\MapUpdate($webSocketLogStore);
+
+        $loop->addPeriodicTimer(3, function(EventLoop\TimerInterface $timer) use ($mapUpdate) {
+            $mapUpdate->housekeeping($timer);
+        });
 
         // TCP Socket -------------------------------------------------------------------------------------------------
-        $tcpSocket = new TcpSocket($loop, $mapUpdate);
+        $tcpSocket = new TcpSocket($loop, $mapUpdate, $tcpSocketLogStore);
         // TCP Server (WebServer <-> TCPServer <-> TCPSocket communication)
         $server = new Socket\Server($this->dsn, $loop, [
             'tcp' => [
@@ -64,12 +83,12 @@ class WebSockets {
             ]
         ]);
 
-        $server->on('connection', function(Socket\ConnectionInterface $connection) use ($tcpSocket){
+        $server->on('connection', function(Socket\ConnectionInterface $connection) use ($tcpSocket) {
             $tcpSocket->onConnect($connection);
         });
 
-        $server->on('error', function(\Exception $e){
-            echo 'error: ' . $e->getMessage() . PHP_EOL;
+        $server->on('error', function(\Exception $e) use ($tcpSocket) {
+            $tcpSocket->log(['debug', 'error'], null, 'onError', $e->getMessage());
         });
 
         // WebSocketServer --------------------------------------------------------------------------------------------

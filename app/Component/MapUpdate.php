@@ -6,19 +6,67 @@
  * Time: 22:29
  */
 
-namespace Exodus4D\Socket\Main;
+namespace Exodus4D\Socket\Component;
 
-use Exodus4D\Socket\Main\Handler\LogFileHandler;
-use Exodus4D\Socket\Main\Formatter\SubscriptionFormatter;
-use Ratchet\MessageComponentInterface;
+use Exodus4D\Socket\Component\Handler\LogFileHandler;
+use Exodus4D\Socket\Component\Formatter\SubscriptionFormatter;
+use Exodus4D\Socket\Data\Payload;
+use Exodus4D\Socket\Log\Store;
 use Ratchet\ConnectionInterface;
 
-class MapUpdate implements MessageComponentInterface {
+class MapUpdate extends AbstractMessageComponent {
+
+    /**
+     * unique name for this component
+     * -> should be overwritten in child instances
+     * -> is used as "log store" name
+     */
+    const COMPONENT_NAME                = 'webSock';
+
+    /**
+     * log message unknown task name
+     */
+    const LOG_TEXT_TASK_UNKNOWN         = 'unknown task: %s';
+
+    /**
+     * log message for denied subscription attempt. -> character data unknown
+     */
+    const LOG_TEXT_SUBSCRIBE_DENY       = 'sub. denied for charId: %d';
+
+    /**
+     * log message for invalid subscription data
+     */
+    const LOG_TEXT_SUBSCRIBE_INVALID    = 'sub. data invalid';
+
+    /**
+     * log message for subscribe characterId
+     */
+    const LOG_TEXT_SUBSCRIBE            = 'sub. charId: %s to mapIds: [%s]';
+
+    /**
+     * log message unsubscribe characterId
+     */
+    const LOG_TEXT_UNSUBSCRIBE          = 'unsub. charId: %d from mapIds: [%s]';
+
+    /**
+     * log message for map data updated broadcast
+     */
+    const LOG_TEXT_MAP_UPDATE           = 'update map data, mapId: %d → broadcast to %d connections';
+
+    /**
+     * log message for map subscriptions data updated broadcast
+     */
+    const LOG_TEXT_MAP_SUBSCRIPTIONS    = 'update map subscriptions data, mapId: %d. → broadcast to %d connections';
+
+    /**
+     * log message for delete mapId broadcast
+     */
+    const LOG_TEXT_MAP_DELETE           = 'delete mapId: $d → broadcast to %d connections';
 
     /**
      * timestamp (ms) from last healthCheck ping
      * -> timestamp received from remote TCP socket
-     * @var
+     * @var int|null
      */
     protected $healthCheckToken;
 
@@ -48,7 +96,7 @@ class MapUpdate implements MessageComponentInterface {
      *          [
      *              'token' => $characterToken3,
      *              'expire' => $expireTime3,
-     *               'characterData' => $characterData2
+     *              'characterData' => $characterData2
      *          ]
      *      ]
      * ]
@@ -108,86 +156,127 @@ class MapUpdate implements MessageComponentInterface {
     protected $characterData;
 
     /**
-     * enable debug output
-     * -> check debug() for more information
-     * @var bool
+     * MapUpdate constructor.
+     * @param Store $store
      */
-    protected $debug = false;
+    public function __construct(Store $store){
+        parent::__construct($store);
 
-    public function __construct() {
-        $this->characterAccessData = [];
-        $this->mapAccessData = [];
-        $this->characters = [];
-        $this->subscriptions = [];
-        $this->characterData = [];
-
-        $this->log('Server START ------------------------------------------');
+        $this->characterAccessData  = [];
+        $this->mapAccessData        = [];
+        $this->characters           = [];
+        $this->subscriptions        = [];
+        $this->characterData        = [];
     }
 
-    public function onOpen(ConnectionInterface $conn) {
-        $this->log('NEW connection. ID (' . $conn->resourceId .') ');
-    }
-
-    public function onMessage(ConnectionInterface $conn, $msg) {
-        $msg = json_decode($msg, true);
-
-        if(
-            isset($msg['task']) &&
-            isset($msg['load'])
-        ){
-            $task = $msg['task'];
-            $load = $msg['load'];
-
-            switch($task){
-                case 'subscribe':
-                    $this->subscribe($conn, $load);
-                    break;
-                case 'healthCheck':
-                    $this->validateHealthCheck($conn, $load);
-                    break;
-                default:
-                    break;
-            }
-        }
+    /**
+     * new client connection
+     * @param ConnectionInterface $conn
+     */
+    public function onOpen(ConnectionInterface $conn){
+        parent::onOpen($conn);
     }
 
     /**
      * @param ConnectionInterface $conn
      */
-    public function onClose(ConnectionInterface $conn) {
-        $this->unSubscribeConnection($conn);
+    public function onClose(ConnectionInterface $conn){
+        parent::onClose($conn);
 
-        $this->log('DISCONNECTED connection. ID (' . $conn->resourceId .') ');
+        $this->unSubscribeConnection($conn);
     }
 
     /**
      * @param ConnectionInterface $conn
      * @param \Exception $e
      */
-    public function onError(ConnectionInterface $conn, \Exception $e) {
-        $this->unSubscribeConnection($conn);
-        $this->log('ERROR "' . $e->getMessage() . '" ID (' . $conn->resourceId .') ');
+    public function onError(ConnectionInterface $conn, \Exception $e){
+        parent::onError($conn, $e);
+
+        // close connection should trigger the onClose() callback for unSubscribe
         $conn->close();
     }
 
     /**
-     * Check token (timestamp from initial TCP healthCheck poke against token send from client
      * @param ConnectionInterface $conn
-     * @param $token
+     * @param string $msg
      */
-    private function validateHealthCheck($conn, $token){
-        $isValid = 0;
+    public function onMessage(ConnectionInterface $conn, $msg){
+        parent::onMessage($conn, $msg);
+    }
 
-        if(
-            $token && $this->healthCheckToken &&
-            (int)$token === (int)$this->healthCheckToken
-        ){
-            $isValid = 1;
+    /**
+     * @param ConnectionInterface $conn
+     * @param Payload $payload
+     */
+    protected function dispatchWebSocketPayload(ConnectionInterface $conn, Payload $payload) : void {
+        switch($payload->task){
+            case 'healthCheck':
+                $this->broadcastHealthCheck($conn, $payload);
+                break;
+            case 'subscribe':
+                $this->subscribe($conn, (array)$payload->load);
+                break;
+            case 'unsubscribe':
+                // make sure characterIds got from client are valid
+                // -> intersect with subscribed characterIds for current $conn
+                $characterIds = array_intersect((array)$payload->load, $this->getCharacterIdsByConnection($conn));
+                if(!empty($characterIds)){
+                    $this->unSubscribeCharacterIds($characterIds, $conn);
+                }
+                break;
+            default:
+                $this->log(['debug', 'error'], $conn, __FUNCTION__, sprintf(static::LOG_TEXT_TASK_UNKNOWN, $payload->task));
+                break;
         }
-        $conn->send( json_encode($isValid) );
+    }
+
+    /**
+     * checks healthCheck $token and respond with validation status + subscription stats
+     * @param ConnectionInterface $conn
+     * @param Payload $payload
+     */
+    private function broadcastHealthCheck(ConnectionInterface $conn, Payload $payload) : void {
+        $isValid = $this->validateHealthCheckToken((int)$payload->load);
+
+        $load = [
+            'isValid' => $isValid,
+        ];
+
+        // Make sure WebSocket client request is valid
+        if($isValid){
+            // set new healthCheckToken for next check
+            $load['token'] = $this->setHealthCheckToken(microtime(true));
+
+            // add subscription stats if $token is valid
+            $load['subStats'] = $this->getSubscriptionStats();
+        }
+
+        $payload->setLoad($load);
+
+        $connections = new \SplObjectStorage();
+        $connections->attach($conn);
+
+        $this->broadcast($connections, $payload);
+
+    }
+
+    /**
+     * compare token (timestamp from initial TCP healthCheck message) with token send from WebSocket
+     * @param int $token
+     * @return bool
+     */
+    private function validateHealthCheckToken(int $token) : bool {
+        $isValid = false;
+
+        if($token && $this->healthCheckToken && $token === (int)$this->healthCheckToken){
+            $isValid = true;
+        }
 
         // reset token
         $this->healthCheckToken = null;
+
+        return $isValid;
     }
 
     /**
@@ -195,9 +284,9 @@ class MapUpdate implements MessageComponentInterface {
      * @param ConnectionInterface $conn
      * @param $subscribeData
      */
-    private function subscribe(ConnectionInterface $conn, $subscribeData){
+    private function subscribe(ConnectionInterface $conn, array $subscribeData) : void {
         $characterId = (int)$subscribeData['id'];
-        $characterToken = $subscribeData['token'];
+        $characterToken = (string)$subscribeData['token'];
 
         if($characterId && $characterToken){
             // check if character access token is valid (exists and not expired in $this->characterAccessData)
@@ -213,21 +302,33 @@ class MapUpdate implements MessageComponentInterface {
                 $changedSubscriptionsMapIds = [];
                 foreach((array)$subscribeData['mapData'] as $data){
                     $mapId = (int)$data['id'];
-                    $mapToken = $data['token'];
+                    $mapToken = (string)$data['token'];
+                    $mapName = (string)$data['name'];
 
                     if($mapId && $mapToken){
                         // check if token is valid (exists and not expired) in $this->mapAccessData
-                        if( $this->checkMapAccess($characterId, $mapId, $mapToken) ){
+                        if($this->checkMapAccess($characterId, $mapId, $mapToken)){
                             // valid map subscribe request
-                            $this->subscriptions[$mapId][$characterId] = $characterId;
+                            $this->subscriptions[$mapId]['characterIds'][$characterId] = $characterId;
+                            $this->subscriptions[$mapId]['data']['name'] = $mapName;
                             $changedSubscriptionsMapIds[] = $mapId;
                         }
                     }
                 }
 
+                sort($changedSubscriptionsMapIds, SORT_NUMERIC);
+
+                $this->log(['debug', 'info'], $conn, __FUNCTION__,
+                    sprintf(static::LOG_TEXT_SUBSCRIBE, $characterId, implode($changedSubscriptionsMapIds, ','))
+                );
+
                 // broadcast all active subscriptions to subscribed connections -------------------------------------------
-                $this->broadcastMapSubscriptions('mapSubscriptions', $changedSubscriptionsMapIds);
+                $this->broadcastMapSubscriptions($changedSubscriptionsMapIds);
+            }else{
+                $this->log(['debug', 'info'], $conn, __FUNCTION__, sprintf(static::LOG_TEXT_SUBSCRIBE_DENY, $characterId));
             }
+        }else{
+            $this->log(['debug', 'error'], $conn, __FUNCTION__, static::LOG_TEXT_SUBSCRIBE_INVALID);
         }
     }
 
@@ -244,10 +345,10 @@ class MapUpdate implements MessageComponentInterface {
      * unSubscribe a $characterId from ALL maps
      * -> if $conn is set -> just unSub the $characterId from this $conn
      * @param int $characterId
-     * @param null $conn
+     * @param ConnectionInterface|null $conn
      * @return bool
      */
-    private function unSubscribeCharacterId($characterId, $conn = null){
+    private function unSubscribeCharacterId(int $characterId, ?ConnectionInterface $conn = null) : bool {
         if($characterId){
             // unSub from $this->characters ---------------------------------------------------------------------------
             if($conn){
@@ -258,7 +359,7 @@ class MapUpdate implements MessageComponentInterface {
                     // no connection left for this character
                     unset($this->characters[$characterId]);
                 }
-                // TODO unset $this->>$characterData if $characterid does not have any other map subscribed to
+                // TODO unset $this->>$characterData if $characterId does not have any other map subscribed to
             }else{
                 // unSub ALL connections from a character (e.g. multiple browsers)
                 unset($this->characters[$characterId]);
@@ -269,11 +370,11 @@ class MapUpdate implements MessageComponentInterface {
 
             // unSub from $this->subscriptions ------------------------------------------------------------------------
             $changedSubscriptionsMapIds = [];
-            foreach($this->subscriptions as $mapId => $characterIds){
-                if(array_key_exists($characterId, $characterIds)){
-                    unset($this->subscriptions[$mapId][$characterId]);
+            foreach($this->subscriptions as $mapId => $subData){
+                if(array_key_exists($characterId, (array)$subData['characterIds'])){
+                    unset($this->subscriptions[$mapId]['characterIds'][$characterId]);
 
-                    if( !count($this->subscriptions[$mapId]) ){
+                    if( !count($this->subscriptions[$mapId]['characterIds']) ){
                         // no characters left on this map
                         unset($this->subscriptions[$mapId]);
                     }
@@ -282,8 +383,14 @@ class MapUpdate implements MessageComponentInterface {
                 }
             }
 
+            sort($changedSubscriptionsMapIds, SORT_NUMERIC);
+
+            $this->log(['debug', 'info'], $conn, __FUNCTION__,
+                sprintf(static::LOG_TEXT_UNSUBSCRIBE, $characterId, implode($changedSubscriptionsMapIds, ','))
+            );
+
             // broadcast all active subscriptions to subscribed connections -------------------------------------------
-            $this->broadcastMapSubscriptions('mapSubscriptions', $changedSubscriptionsMapIds);
+            $this->broadcastMapSubscriptions($changedSubscriptionsMapIds);
         }
 
         return true;
@@ -292,11 +399,11 @@ class MapUpdate implements MessageComponentInterface {
     /**
      * unSubscribe $characterIds from ALL maps
      * -> if $conn is set -> just unSub the $characterId from this $conn
-     * @param array $characterIds
-     * @param null $conn
+     * @param int[] $characterIds
+     * @param ConnectionInterface|null $conn
      * @return bool
      */
-    private function unSubscribeCharacterIds(array $characterIds, $conn = null): bool{
+    private function unSubscribeCharacterIds(array $characterIds, ?ConnectionInterface $conn = null) : bool {
         $response = false;
         foreach($characterIds as $characterId){
             $response = $this->unSubscribeCharacterId($characterId, $conn);
@@ -310,13 +417,17 @@ class MapUpdate implements MessageComponentInterface {
      * @param int $mapId
      * @return int
      */
-    private function deleteMapId(string $task, $mapId){
-        $connectionCount =  $this->broadcastMapData($task, $mapId, $mapId);
+    private function deleteMapId(string $task, int $mapId) : int {
+        $connectionCount = $this->broadcastMapData($task, $mapId, $mapId);
 
         // remove map from subscriptions
-        if( isset($this->subscriptions[$mapId]) ){
+        if(isset($this->subscriptions[$mapId])){
             unset($this->subscriptions[$mapId]);
         }
+
+        $this->log(['debug', 'info'], null, __FUNCTION__,
+            sprintf(static::LOG_TEXT_MAP_DELETE, $mapId, $connectionCount)
+        );
 
         return $connectionCount;
     }
@@ -324,12 +435,12 @@ class MapUpdate implements MessageComponentInterface {
     /**
      * get all mapIds a characterId has subscribed to
      * @param int $characterId
-     * @return array
+     * @return int[]
      */
     private function getMapIdsByCharacterId(int $characterId) : array {
         $mapIds = [];
-        foreach($this->subscriptions as $mapId => $characterIds){
-            if(array_key_exists($characterId, $characterIds)){
+        foreach($this->subscriptions as $mapId => $subData) {
+            if(array_key_exists($characterId, (array)$subData['characterIds'])){
                 $mapIds[] = $mapId;
             }
         }
@@ -340,7 +451,7 @@ class MapUpdate implements MessageComponentInterface {
      * @param ConnectionInterface $conn
      * @return int[]
      */
-    private function getCharacterIdsByConnection(ConnectionInterface $conn){
+    private function getCharacterIdsByConnection(ConnectionInterface $conn) : array {
         $characterIds = [];
         $resourceId = $conn->resourceId;
 
@@ -363,31 +474,43 @@ class MapUpdate implements MessageComponentInterface {
         $characterIds = [];
         if(
             array_key_exists($mapId, $this->subscriptions) &&
-            is_array($this->subscriptions[$mapId])
+            is_array($this->subscriptions[$mapId]['characterIds'])
         ){
-            $characterIds = array_keys($this->subscriptions[$mapId]);
+            $characterIds = array_keys($this->subscriptions[$mapId]['characterIds']);
         }
         return $characterIds;
     }
 
     /**
-     * get connection objects by characterIds
+     * get connections by $characterIds
      * @param int[] $characterIds
      * @return \SplObjectStorage
      */
-    private function getConnectionsByCharacterIds($characterIds){
+    private function getConnectionsByCharacterIds(array $characterIds) : \SplObjectStorage {
         $connections = new \SplObjectStorage;
-
         foreach($characterIds as $characterId){
-            if($charConnections = (array)$this->characters[$characterId] ){
-                foreach($charConnections as $conn){
-                    if( !$connections->contains($conn) ){
-                        $connections->attach($conn);
-                    }
+            $connections->addAll($this->getConnectionsByCharacterId($characterId));
+        }
+        return $connections;
+    }
+
+    /**
+     * get connections by $characterId
+     * @param int $characterId
+     * @return \SplObjectStorage
+     */
+    private function getConnectionsByCharacterId(int $characterId) : \SplObjectStorage {
+        $connections = new \SplObjectStorage;
+        if(isset($this->characters[$characterId])){
+            foreach(array_keys($this->characters[$characterId]) as $resourceId){
+                if(
+                    $this->hasConnectionId($resourceId) &&
+                    !$connections->contains($conn = $this->getConnection($resourceId))
+                ){
+                    $connections->attach($conn);
                 }
             }
         }
-
         return $connections;
     }
 
@@ -397,12 +520,13 @@ class MapUpdate implements MessageComponentInterface {
      * @param $characterToken
      * @return array
      */
-    private function checkCharacterAccess($characterId, $characterToken) : array {
+    private function checkCharacterAccess(int $characterId, string $characterToken) : array {
         $characterData = [];
         if( !empty($characterAccessData = (array)$this->characterAccessData[$characterId]) ){
+            // check expire for $this->characterAccessData -> check ALL characters and remove expired
             foreach($characterAccessData as $i => $data){
                 $deleteToken = false;
-                // check expire for $this->characterAccessData -> check ALL characters and remove expired
+
                 if( ((int)$data['expire'] - time()) > 0 ){
                     // still valid -> check token
                     if($characterToken === $data['token']){
@@ -425,6 +549,7 @@ class MapUpdate implements MessageComponentInterface {
                 }
             }
         }
+
         return $characterData;
     }
 
@@ -435,7 +560,7 @@ class MapUpdate implements MessageComponentInterface {
      * @param $mapToken
      * @return bool
      */
-    private function checkMapAccess($characterId, $mapId, $mapToken){
+    private function checkMapAccess(int $characterId, int $mapId, string $mapToken) : bool {
         $access = false;
         if( !empty($mapAccessData = (array)$this->mapAccessData[$mapId][$characterId]) ){
             foreach($mapAccessData as $i => $data){
@@ -469,21 +594,14 @@ class MapUpdate implements MessageComponentInterface {
     }
 
     /**
-     * broadcast data ($load) to $connections
-     * @param ConnectionInterface[] | \SplObjectStorage $connections
-     * @param $task
-     * @param $load
-     * @param int[] $characterIds optional, recipients (e.g if multiple browser tabs are open)
+     * broadcast $payload to $connections
+     * @param \SplObjectStorage $connections
+     * @param Payload $payload
      */
-    private function broadcastData($connections, string $task, $load, array $characterIds = []){
-        $response = [
-            'task' => $task,
-            'characterIds' => $characterIds,
-            'load' => $load
-        ];
-
+    private function broadcast(\SplObjectStorage $connections, Payload $payload) : void {
+        $data = json_encode($payload);
         foreach($connections as $conn){
-            $conn->send( json_encode($response) );
+            $this->send($conn, $data);
         }
     }
 
@@ -493,7 +611,7 @@ class MapUpdate implements MessageComponentInterface {
      * receive data from TCP socket (main App)
      * -> send response back
      * @param string $task
-     * @param null $load
+     * @param null|int|array $load
      * @return bool|float|int|null
      */
     public function receiveData(string $task, $load = null){
@@ -501,16 +619,15 @@ class MapUpdate implements MessageComponentInterface {
 
         switch($task){
             case 'healthCheck':
-                $this->healthCheckToken = (float)$load;
-                $responseLoad = $this->healthCheckToken;
+                $responseLoad = $this->setHealthCheckToken((float)$load);
                 break;
             case 'characterUpdate':
-                $this->updateCharacterData($load);
+                $this->updateCharacterData((array)$load);
                 $mapIds = $this->getMapIdsByCharacterId((int)$load['id']);
-                $this->broadcastMapSubscriptions('mapSubscriptions', $mapIds);
+                $this->broadcastMapSubscriptions($mapIds);
                 break;
             case 'characterLogout':
-                $responseLoad = $this->unSubscribeCharacterIds($load);
+                $responseLoad = $this->unSubscribeCharacterIds((array)$load);
                 break;
             case 'mapConnectionAccess':
                 $responseLoad = $this->setConnectionAccess($load);
@@ -519,10 +636,10 @@ class MapUpdate implements MessageComponentInterface {
                 $responseLoad = $this->setAccess($task, $load);
                 break;
             case 'mapUpdate':
-                $responseLoad = $this->broadcastMapUpdate($task, $load);
+                $responseLoad = $this->broadcastMapUpdate($task, (array)$load);
                 break;
             case 'mapDeleted':
-                $responseLoad = $this->deleteMapId($task, $load);
+                $responseLoad = $this->deleteMapId($task, (int)$load);
                 break;
             case 'logData':
                 $this->handleLogData((array)$load['meta'], (array)$load['log']);
@@ -532,39 +649,63 @@ class MapUpdate implements MessageComponentInterface {
         return $responseLoad;
     }
 
-    private function setCharacterData(array $characterData){
-        $characterId = (int)$characterData['id'];
-        if($characterId){
+    /**
+     * @param float $token
+     * @return float
+     */
+    private function setHealthCheckToken(float $token) : float {
+        $this->healthCheckToken = $token;
+        return $this->healthCheckToken;
+    }
+
+    /**
+     * @param array $characterData
+     */
+    private function setCharacterData(array $characterData) : void {
+        if($characterId = (int)$characterData['id']){
             $this->characterData[$characterId] = $characterData;
         }
     }
 
+    /**
+     * @param int $characterId
+     * @return array
+     */
     private function getCharacterData(int $characterId) : array {
         return empty($this->characterData[$characterId]) ? [] : $this->characterData[$characterId];
     }
 
+    /**
+     * @param array $characterIds
+     * @return array
+     */
     private function getCharactersData(array $characterIds) : array {
         return array_filter($this->characterData, function($characterId) use($characterIds) {
             return in_array($characterId, $characterIds);
         }, ARRAY_FILTER_USE_KEY);
     }
 
-    private function updateCharacterData(array $characterData){
+    /**
+     * @param array $characterData
+     */
+    private function updateCharacterData(array $characterData) : void {
         $characterId = (int)$characterData['id'];
         if($this->getCharacterData($characterId)){
             $this->setCharacterData($characterData);
         }
     }
 
-    private function deleteCharacterData(int $characterId){
+    /**
+     * @param int $characterId
+     */
+    private function deleteCharacterData(int $characterId) : void {
         unset($this->characterData[$characterId]);
     }
 
     /**
-     * @param string $task
      * @param array $mapIds
      */
-    private function broadcastMapSubscriptions(string $task, array $mapIds){
+    private function broadcastMapSubscriptions(array $mapIds) : void {
         $mapIds = array_unique($mapIds);
 
         foreach($mapIds as $mapId){
@@ -578,7 +719,11 @@ class MapUpdate implements MessageComponentInterface {
                 $mapUserData->config = (object)['id' => $mapId];
                 $mapUserData->data = (object)['systems' => $systems];
 
-                $this->broadcastMapData($task, $mapId, $mapUserData);
+                $connectionCount = $this->broadcastMapData('mapSubscriptions', $mapId, $mapUserData);
+
+                $this->log(['debug'], null, __FUNCTION__,
+                    sprintf(static::LOG_TEXT_MAP_SUBSCRIPTIONS, $mapId, $connectionCount)
+                );
             }
         }
     }
@@ -588,10 +733,15 @@ class MapUpdate implements MessageComponentInterface {
      * @param array $mapData
      * @return int
      */
-    private function broadcastMapUpdate(string $task, $mapData){
+    private function broadcastMapUpdate(string $task, array $mapData) : int {
         $mapId = (int)$mapData['config']['id'];
+        $connectionCount =  $this->broadcastMapData($task, $mapId, $mapData);
 
-        return $this->broadcastMapData($task, $mapId, $mapData);
+        $this->log(['debug'], null, __FUNCTION__,
+            sprintf(static::LOG_TEXT_MAP_UPDATE, $mapId, $connectionCount)
+        );
+
+        return $connectionCount;
     }
 
     /**
@@ -605,7 +755,8 @@ class MapUpdate implements MessageComponentInterface {
         $characterIds = $this->getCharacterIdsByMapId($mapId);
         $connections = $this->getConnectionsByCharacterIds($characterIds);
 
-        $this->broadcastData($connections, $task, $load, $characterIds);
+        $this->broadcast($connections, $this->newPayload($task, $load, $characterIds));
+
         return count($connections);
     }
 
@@ -619,6 +770,7 @@ class MapUpdate implements MessageComponentInterface {
         $newMapCharacterIds = [];
 
         if($mapId = (int)$accessData['id']){
+            $mapName = (string)$accessData['name'];
             $characterIds = (array)$accessData['characterIds'];
             // check all charactersIds that have map access... --------------------------------------------------------
             foreach($characterIds as $characterId){
@@ -632,21 +784,23 @@ class MapUpdate implements MessageComponentInterface {
                 }
             }
 
-            $currentMapCharacterIds = (array)$this->subscriptions[$mapId];
+            $currentMapCharacterIds = (array)$this->subscriptions[$mapId]['characterIds'];
 
             // broadcast "map delete" to no longer valid characters ---------------------------------------------------
             $removedMapCharacterIds = array_keys(array_diff_key($currentMapCharacterIds, $newMapCharacterIds));
             $removedMapCharacterConnections = $this->getConnectionsByCharacterIds($removedMapCharacterIds);
-            $this->broadcastData($removedMapCharacterConnections, $task, $mapId, $removedMapCharacterIds);
+
+            $this->broadcast($removedMapCharacterConnections, $this->newPayload($task, $mapId, $removedMapCharacterIds));
 
             // update map subscriptions -------------------------------------------------------------------------------
             if( !empty($newMapCharacterIds) ){
                 // set new characters that have map access (overwrites existing subscriptions for that map)
-                $this->subscriptions[$mapId] = $newMapCharacterIds;
+                $this->subscriptions[$mapId]['characterIds'] = $newMapCharacterIds;
+                $this->subscriptions[$mapId]['data']['name'] = $mapName;
 
                 // check if subscriptions have changed
                 if( !$this->arraysEqualKeys($currentMapCharacterIds, $newMapCharacterIds) ){
-                    $this->broadcastMapSubscriptions('mapSubscriptions', [$mapId]);
+                    $this->broadcastMapSubscriptions([$mapId]);
                 }
             }else{
                 // no characters (left) on this map
@@ -661,7 +815,7 @@ class MapUpdate implements MessageComponentInterface {
      * @param $connectionAccessData
      * @return bool
      */
-    private function setConnectionAccess($connectionAccessData) {
+    private function setConnectionAccess($connectionAccessData){
         $response = false;
         $characterId = (int)$connectionAccessData['id'];
         $characterData = $connectionAccessData['characterData'];
@@ -698,6 +852,75 @@ class MapUpdate implements MessageComponentInterface {
     }
 
     /**
+     * get stats data
+     * -> lists all channels, subscribed characters + connection info
+     * @return array
+     */
+    protected function getSubscriptionStats() : array {
+        $uniqueConnections = [];
+        $uniqueSubscriptions = [];
+        $channelsStats = [];
+
+        foreach($this->subscriptions as $mapId => $subData){
+            $characterIds = $this->getCharacterIdsByMapId($mapId);
+            $uniqueMapConnections = [];
+
+            $channelStats = [
+                'channelId'     => $mapId,
+                'channelName'   => $subData['data']['name'],
+                'countSub'      => count($characterIds),
+                'countCon'      => 0,
+                'subscriptions' => []
+            ];
+
+            foreach($characterIds as $characterId){
+                $characterData = $this->getCharacterData($characterId);
+                $connections = $this->getConnectionsByCharacterId($characterId);
+
+                $characterStats = [
+                    'characterId'   => $characterId,
+                    'characterName' => isset($characterData['name']) ? $characterData['name'] : null,
+                    'countCon'      => $connections->count(),
+                    'connections'   => []
+                ];
+
+                foreach($connections as $connection){
+                    if(!in_array($connection->resourceId, $uniqueMapConnections)){
+                        $uniqueMapConnections[] = $connection->resourceId;
+                    }
+
+                    $metaData = $this->getConnectionData($connection);
+                    $microTime = (float)$metaData['mTimeSend'];
+                    $logTime = Store::getDateTimeFromMicrotime($microTime);
+
+                    $characterStats['connections'][] = [
+                        'resourceId'        => $connection->resourceId,
+                        'remoteAddress'     => $connection->remoteAddress,
+                        'mTimeSend'         => $microTime,
+                        'mTimeSendFormat1'  => $logTime->format('Y-m-d H:i:s.u'),
+                        'mTimeSendFormat2'  => $logTime->format('H:i:s')
+                    ];
+                }
+
+                $channelStats['subscriptions'][] = $characterStats;
+            }
+
+            $uniqueConnections = array_unique(array_merge($uniqueConnections, $uniqueMapConnections));
+            $uniqueSubscriptions = array_unique(array_merge($uniqueSubscriptions, $characterIds));
+
+            $channelStats['countCon'] = count($uniqueMapConnections);
+
+            $channelsStats[] = $channelStats;
+        }
+
+        return [
+            'countSub' => count($uniqueSubscriptions),
+            'countCon' => count($uniqueConnections),
+            'channels' => $channelsStats
+        ];
+    }
+
+    /**
      * compare two assoc arrays by keys. Key order is ignored
      * -> if all keys from array1 exist in array2 && all keys from array2 exist in array 1, arrays are supposed to be equal
      * @param array $array1
@@ -717,46 +940,4 @@ class MapUpdate implements MessageComponentInterface {
         $logHandler = new LogFileHandler((string)$meta['stream']);
         $logHandler->write($log);
     }
-
-
-    // logging ========================================================================================================
-
-    /**
-     * outputs a custom log text
-     * -> The output can be written to a *.log file if running the webSocket server (cmd.php) as a service
-     * @param $text
-     */
-    protected function log($text){
-        $text = date('Y-m-d H:i:s') . ' ' . $text;
-        echo $text . "\n";
-
-        $this->debug();
-    }
-
-    protected function debug(){
-        if( $this->debug ){
-            $mapId = 1;
-            $characterId = 1946320202;
-
-            $subscriptions = $this->subscriptions[$mapId];
-            $connectionsForChar = count($this->characters[$characterId]);
-            $mapAccessData = $this->mapAccessData[$mapId][$characterId];
-            echo "\n" . "========== START ==========" . "\n";
-
-            echo "-> characterAccessData: " . "\n";
-            var_dump( $this->characterAccessData );
-
-            echo "\n" . "-> Subscriptions mapId: " . $mapId . " " . "\n";
-            var_dump($subscriptions);
-
-            echo "\n" . "-> connectionsForChar characterId: " . $characterId . " count: " .  $connectionsForChar . " " . "\n";
-
-            echo "-> mapAccessData: " . "\n";
-            var_dump($mapAccessData);
-
-            echo "\n" . "========== END ==========" . "\n";
-        }
-
-    }
-
 }

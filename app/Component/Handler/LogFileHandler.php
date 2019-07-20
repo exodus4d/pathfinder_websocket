@@ -6,7 +6,7 @@
  * Time: 17:02
  */
 
-namespace Exodus4D\Socket\Main\Handler;
+namespace Exodus4D\Socket\Component\Handler;
 
 
 class LogFileHandler {

@@ -6,7 +6,7 @@
  * Time: 13:09
  */
 
-namespace Exodus4D\Socket\Main\Formatter;
+namespace Exodus4D\Socket\Component\Formatter;
 
 
 class SubscriptionFormatter{
