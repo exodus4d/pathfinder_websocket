@@ -44,11 +44,15 @@ class LogFileHandler {
     public function write(array $log){
         $log = (string)json_encode($log, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if( !empty($log) ){
-            $stream = fopen($this->stream, 'a');
-            flock($stream, LOCK_EX);
-            fwrite($stream, $log . PHP_EOL);
-            flock($stream, LOCK_UN);
-            fclose($stream);
+            if($stream = fopen($this->stream, 'a')){
+                flock($stream, LOCK_EX);
+                fwrite($stream, $log . PHP_EOL);
+                flock($stream, LOCK_UN);
+                fclose($stream);
+
+                // logs should be writable for non webSocket user too
+                @chmod($this->stream, 0666);
+            }
         }
     }
 
