@@ -18,7 +18,7 @@
     "php-64bit": ">=7.1",
     "ext-json": "*",
     "cboden/ratchet": "0.4.x",
-    "react/promise-stream": "1.1.*",
+    "react/promise-stream": "1.2.*",
     "clue/ndjson-react": "1.0.*"
   },
   "suggest": {
