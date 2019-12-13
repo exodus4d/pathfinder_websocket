@@ -319,7 +319,7 @@ class MapUpdate extends AbstractMessageComponent {
                 sort($changedSubscriptionsMapIds, SORT_NUMERIC);
 
                 $this->log(['debug', 'info'], $conn, __FUNCTION__,
-                    sprintf(static::LOG_TEXT_SUBSCRIBE, $characterId, implode($changedSubscriptionsMapIds, ','))
+                    sprintf(static::LOG_TEXT_SUBSCRIBE, $characterId, implode(',', $changedSubscriptionsMapIds))
                 );
 
                 // broadcast all active subscriptions to subscribed connections -------------------------------------------
@@ -386,7 +386,7 @@ class MapUpdate extends AbstractMessageComponent {
             sort($changedSubscriptionsMapIds, SORT_NUMERIC);
 
             $this->log(['debug', 'info'], $conn, __FUNCTION__,
-                sprintf(static::LOG_TEXT_UNSUBSCRIBE, $characterId, implode($changedSubscriptionsMapIds, ','))
+                sprintf(static::LOG_TEXT_UNSUBSCRIBE, $characterId, implode(',', $changedSubscriptionsMapIds))
             );
 
             // broadcast all active subscriptions to subscribed connections -------------------------------------------

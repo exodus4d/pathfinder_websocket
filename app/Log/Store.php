@@ -202,11 +202,11 @@ class Store {
             $logData['remoteAddress'] . ($logData['resourceId'] ? ' #' . $logData['resourceId'] : ''),
             self::$colors->getColoredString($logData['fileName'] . ' line ' . $logData['lineNumber'], 'dark_gray'),
             self::$colors->getColoredString($logData['function'] . '()' . (($logData['function'] !== $logData['action']) ? ' [' . $logData['action'] . ']' : ''), 'dark_gray'),
-            implode((array)$logData['logTypes'], ','),
+            implode(',', (array)$logData['logTypes']),
             self::$colors->getColoredString($logData['message'], 'light_purple')
         ];
 
-        echo implode(array_filter($data), ' | ') . PHP_EOL;
+        echo implode(' | ', array_filter($data)) . PHP_EOL;
     }
 
     /**
