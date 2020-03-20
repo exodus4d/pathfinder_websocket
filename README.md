@@ -1,12 +1,12 @@
 ## WebSocket server for [Pathfinder](https://github.com/exodus4d/pathfinder)
 
 ### Requirements
-- _PHP_ **(≥ v7.1)**
-- A working instance of *[Pathfinder](https://github.com/exodus4d/pathfinder)* **(≥ v1.2.0)**
+- _PHP_ (≥ v7.1)
+- A working instance of *[Pathfinder](https://github.com/exodus4d/pathfinder)* (≥ v2.0.0-rc.1)
 - [_Composer_](https://getcomposer.org/download/) to install packages for the WebSocket server
 
 ### Install
-1. Checkout this project in a **new** folder (NOT the install for _Pathfinder_ itself) e.g. `/var/www/websocket.pathfinder`
+1. Checkout this project in a **new** folder e.g. `/var/www/websocket.pathfinder`
 1. Install [_Composer_](https://getcomposer.org/download/)
 2. Install Composer dependencies from `composer.json` file:
   - `$ cd /var/www/websocket.pathfinder`
