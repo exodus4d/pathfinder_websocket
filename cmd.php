@@ -56,8 +56,23 @@ if(PHP_SAPI === 'cli'){
         }
         $data[] = '';
 
-        echo implode($data, PHP_EOL) . PHP_EOL;
+        echo implode(PHP_EOL, $data) . PHP_EOL;
     };
+
+    /**
+     * set error reporting based on debug option value
+     * @param int $debug
+     */
+    $setErrorReporting = function(int $debug){
+        switch($debug){
+            case 0: error_reporting(0); break; // Turn off all error reporting
+            case 1: error_reporting(E_ERROR); break; // Errors only
+            case 2: error_reporting(E_ALL & ~E_NOTICE); break; // Report all errors except E_NOTICE
+            default: error_reporting(E_ALL);
+        }
+    };
+
+    $setErrorReporting($options['debug']);
 
     if($options['debug']){
         // print if -debug > 0
