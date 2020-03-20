@@ -19,7 +19,7 @@
     "ext-json": "*",
     "cboden/ratchet": "0.4.x",
     "react/promise-stream": "1.2.*",
-    "clue/ndjson-react": "1.0.*"
+    "clue/ndjson-react": "1.1.*"
   },
   "suggest": {
     "ext-event": "If installed, 'ExtEventLoop' class will get used as default event loop. Better performance. https://pecl.php.net/package/event"

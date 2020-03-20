@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6848c5d886aa54f3bd6d047b09783468",
+    "content-hash": "3ab6b63f00cc99da3ef0ca2500f96d9b",
     "packages": [
         {
             "name": "cboden/ratchet",
@@ -61,16 +61,16 @@
         },
         {
             "name": "clue/ndjson-react",
-            "version": "v1.0.0",
+            "version": "v1.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/clue/reactphp-ndjson.git",
-                "reference": "c41a30e7f888dc0e4af18881b2c9ab260ba8d6ce"
+                "reference": "767ec9543945802b5766fab0da4520bf20626f66"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/clue/reactphp-ndjson/zipball/c41a30e7f888dc0e4af18881b2c9ab260ba8d6ce",
-                "reference": "c41a30e7f888dc0e4af18881b2c9ab260ba8d6ce",
+                "url": "https://api.github.com/repos/clue/reactphp-ndjson/zipball/767ec9543945802b5766fab0da4520bf20626f66",
+                "reference": "767ec9543945802b5766fab0da4520bf20626f66",
                 "shasum": ""
             },
             "require": {
@@ -78,7 +78,7 @@
                 "react/stream": "^1.0 || ^0.7 || ^0.6"
             },
             "require-dev": {
-                "phpunit/phpunit": "^6.0 || ^5.7 || ^4.8.35",
+                "phpunit/phpunit": "^7.0 || ^6.0 || ^5.7 || ^4.8.35",
                 "react/event-loop": "^1.0 || ^0.5 || ^0.4 || ^0.3"
             },
             "type": "library",
@@ -94,7 +94,7 @@
             "authors": [
                 {
                     "name": "Christian Lück",
-                    "email": "christian@lueck.tv"
+                    "email": "christian@clue.engineering"
                 }
             ],
             "description": "Streaming newline-delimited JSON (NDJSON) parser and encoder for ReactPHP.",
@@ -107,7 +107,7 @@
                 "reactphp",
                 "streaming"
             ],
-            "time": "2018-05-17T15:31:04+00:00"
+            "time": "2020-02-04T11:48:52+00:00"
         },
         {
             "name": "evenement/evenement",
@@ -644,30 +644,31 @@
         },
         {
             "name": "react/socket",
-            "version": "v1.3.0",
+            "version": "v1.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/reactphp/socket.git",
-                "reference": "10f0629ec83ea0fa22597f348623f554227e3ca0"
+                "reference": "97522e24987365e1ed873f0f4884900747a668e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/reactphp/socket/zipball/10f0629ec83ea0fa22597f348623f554227e3ca0",
-                "reference": "10f0629ec83ea0fa22597f348623f554227e3ca0",
+                "url": "https://api.github.com/repos/reactphp/socket/zipball/97522e24987365e1ed873f0f4884900747a668e0",
+                "reference": "97522e24987365e1ed873f0f4884900747a668e0",
                 "shasum": ""
             },
             "require": {
                 "evenement/evenement": "^3.0 || ^2.0 || ^1.0",
                 "php": ">=5.3.0",
-                "react/dns": "^1.0 || ^0.4.13",
-                "react/event-loop": "^1.0 || ^0.5 || ^0.4 || ^0.3.5",
+                "react/dns": "^1.1",
+                "react/event-loop": "^1.0 || ^0.5",
                 "react/promise": "^2.6.0 || ^1.2.1",
                 "react/promise-timer": "^1.4.0",
                 "react/stream": "^1.1"
             },
             "require-dev": {
                 "clue/block-react": "^1.2",
-                "phpunit/phpunit": "^6.4 || ^5.7 || ^4.8.35"
+                "phpunit/phpunit": "^7.5 || ^6.4 || ^5.7 || ^4.8.35",
+                "react/promise-stream": "^1.2"
             },
             "type": "library",
             "autoload": {
@@ -687,7 +688,7 @@
                 "reactphp",
                 "stream"
             ],
-            "time": "2019-07-10T10:11:14+00:00"
+            "time": "2020-03-12T12:15:14+00:00"
         },
         {
             "name": "react/stream",
