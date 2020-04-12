@@ -125,7 +125,10 @@ Description = Restart (periodically)  WebSocket server [LIVE]
 Type = oneshot
 ExecStart = /usr/bin/systemctl try-restart websocket.pathfinder.service
 ```
-
+And then, we need to either restart the machine or launch
+```
+systemctl start restart.websocket.pathfinder.timer
+```
 ### Info
 - [*Ratchet*](http://socketo.me) - "WebSockets for PHP"
 - [*ReactPHP*](https://reactphp.org) - "Event-driven, non-blocking I/O with PHP"
